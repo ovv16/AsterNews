@@ -127,6 +127,7 @@
     function spollers() {
         const spollersArray = document.querySelectorAll("[data-spollers]");
         if (spollersArray.length > 0) {
+            document.addEventListener("click", setSpollerAction);
             const spollersRegular = Array.from(spollersArray).filter((function(item, index, self) {
                 return !item.dataset.spollers.split(",")[0];
             }));
@@ -144,24 +145,31 @@
                     if (matchMedia.matches || !matchMedia) {
                         spollersBlock.classList.add("_spoller-init");
                         initSpollerBody(spollersBlock);
-                        spollersBlock.addEventListener("click", setSpollerAction);
                     } else {
                         spollersBlock.classList.remove("_spoller-init");
                         initSpollerBody(spollersBlock, false);
-                        spollersBlock.removeEventListener("click", setSpollerAction);
                     }
                 }));
             }
             function initSpollerBody(spollersBlock, hideSpollerBody = true) {
-                let spollerTitles = spollersBlock.querySelectorAll("[data-spoller]");
-                if (spollerTitles.length) {
-                    spollerTitles = Array.from(spollerTitles).filter((item => item.closest("[data-spollers]") === spollersBlock));
-                    spollerTitles.forEach((spollerTitle => {
+                let spollerItems = spollersBlock.querySelectorAll("details");
+                if (spollerItems.length) {
+                    spollerItems = Array.from(spollerItems).filter((item => item.closest("[data-spollers]") === spollersBlock));
+                    spollerItems.forEach((spollerItem => {
+                        let spollerTitle = spollerItem.querySelector("summary");
                         if (hideSpollerBody) {
                             spollerTitle.removeAttribute("tabindex");
-                            if (!spollerTitle.classList.contains("_spoller-active")) spollerTitle.nextElementSibling.hidden = true;
+                            if (!spollerItem.hasAttribute("data-open")) {
+                                spollerItem.open = false;
+                                spollerTitle.nextElementSibling.hidden = true;
+                            } else {
+                                spollerTitle.classList.add("_spoller-active");
+                                spollerItem.open = true;
+                            }
                         } else {
                             spollerTitle.setAttribute("tabindex", "-1");
+                            spollerTitle.classList.remove("_spoller-active");
+                            spollerItem.open = true;
                             spollerTitle.nextElementSibling.hidden = false;
                         }
                     }));
@@ -169,37 +177,60 @@
             }
             function setSpollerAction(e) {
                 const el = e.target;
-                if (el.closest("[data-spoller]")) {
-                    const spollerTitle = el.closest("[data-spoller]");
+                if (el.closest("summary") && el.closest("[data-spollers]").classList.contains("_spoller-init")) {
+                    const spollerTitle = el.closest("summary");
+                    const spollerBlock = spollerTitle.closest("details");
                     const spollersBlock = spollerTitle.closest("[data-spollers]");
                     const oneSpoller = spollersBlock.hasAttribute("data-one-spoller");
+                    const scrollSpoller = spollerBlock.hasAttribute("data-spoller-scroll");
                     const spollerSpeed = spollersBlock.dataset.spollersSpeed ? parseInt(spollersBlock.dataset.spollersSpeed) : 500;
                     if (!spollersBlock.querySelectorAll("._slide").length) {
-                        if (oneSpoller && !spollerTitle.classList.contains("_spoller-active")) hideSpollersBody(spollersBlock);
+                        if (oneSpoller && !spollerBlock.open) hideSpollersBody(spollersBlock);
+                        !spollerBlock.open ? spollerBlock.open = true : setTimeout((() => {
+                            spollerBlock.open = false;
+                        }), spollerSpeed);
                         spollerTitle.classList.toggle("_spoller-active");
                         _slideToggle(spollerTitle.nextElementSibling, spollerSpeed);
+                        if (scrollSpoller && spollerTitle.classList.contains("_spoller-active")) {
+                            const scrollSpollerValue = spollerBlock.dataset.spollerScroll;
+                            const scrollSpollerOffset = +scrollSpollerValue ? +scrollSpollerValue : 0;
+                            const scrollSpollerNoHeader = spollerBlock.hasAttribute("data-spoller-scroll-noheader") ? document.querySelector(".header").offsetHeight : 0;
+                            window.scrollTo({
+                                top: spollerBlock.offsetTop - (scrollSpollerOffset + scrollSpollerNoHeader),
+                                behavior: "smooth"
+                            });
+                        }
                     }
                     e.preventDefault();
                 }
-            }
-            function hideSpollersBody(spollersBlock) {
-                const spollerActiveTitle = spollersBlock.querySelector("[data-spoller]._spoller-active");
-                const spollerSpeed = spollersBlock.dataset.spollersSpeed ? parseInt(spollersBlock.dataset.spollersSpeed) : 500;
-                if (spollerActiveTitle && !spollersBlock.querySelectorAll("._slide").length) {
-                    spollerActiveTitle.classList.remove("_spoller-active");
-                    _slideUp(spollerActiveTitle.nextElementSibling, spollerSpeed);
+                if (!el.closest("[data-spollers]")) {
+                    const spollersClose = document.querySelectorAll("[data-spoller-close]");
+                    if (spollersClose.length) spollersClose.forEach((spollerClose => {
+                        const spollersBlock = spollerClose.closest("[data-spollers]");
+                        const spollerCloseBlock = spollerClose.parentNode;
+                        if (spollersBlock.classList.contains("_spoller-init")) {
+                            const spollerSpeed = spollersBlock.dataset.spollersSpeed ? parseInt(spollersBlock.dataset.spollersSpeed) : 500;
+                            spollerClose.classList.remove("_spoller-active");
+                            _slideUp(spollerClose.nextElementSibling, spollerSpeed);
+                            setTimeout((() => {
+                                spollerCloseBlock.open = false;
+                            }), spollerSpeed);
+                        }
+                    }));
                 }
             }
-            const spollersClose = document.querySelectorAll("[data-spoller-close]");
-            if (spollersClose.length) document.addEventListener("click", (function(e) {
-                const el = e.target;
-                if (!el.closest("[data-spollers]")) spollersClose.forEach((spollerClose => {
-                    const spollersBlock = spollerClose.closest("[data-spollers]");
+            function hideSpollersBody(spollersBlock) {
+                const spollerActiveBlock = spollersBlock.querySelector("details[open]");
+                if (spollerActiveBlock && !spollersBlock.querySelectorAll("._slide").length) {
+                    const spollerActiveTitle = spollerActiveBlock.querySelector("summary");
                     const spollerSpeed = spollersBlock.dataset.spollersSpeed ? parseInt(spollersBlock.dataset.spollersSpeed) : 500;
-                    spollerClose.classList.remove("_spoller-active");
-                    _slideUp(spollerClose.nextElementSibling, spollerSpeed);
-                }));
-            }));
+                    spollerActiveTitle.classList.remove("_spoller-active");
+                    _slideUp(spollerActiveTitle.nextElementSibling, spollerSpeed);
+                    setTimeout((() => {
+                        spollerActiveBlock.open = false;
+                    }), spollerSpeed);
+                }
+            }
         }
     }
     function menuInit() {
@@ -4089,20 +4120,26 @@
             }));
         } else console.log("No data");
     }
+    const weatherBlock = document.querySelector(".weather-module");
     async function loadWeather(e) {
-        const server = "https://api.openweathermap.org/data/2.5/weather?lat=48.6042955&lon=22.2753241&appid={ API key}";
+        weatherBlock.innerHTML = `\n\t\t<div class="weather__loading">\n\t\t\t<img src="img/loading.gif" alt="Loading...">\n\t\t</div>`;
+        const server = "https://api.openweathermap.org/data/2.5/weather?units=metric&q=Kyiv&appid=522f7ec766b55c89fccbc47a4e7a72c0";
         const response = await fetch(server, {
             method: "GET"
         });
-        if (response.ok) {
-            const responseResult = await response.json();
-            newsWeather(responseResult);
-        } else console.log("Error API");
+        const responseResult = await response.json();
+        if (response.ok) getWeather(responseResult); else weatherBlock.innerHTML = responseResult.message;
     }
-    function newsWeather(data) {
-        console.log(data);
+    function getWeather(data) {
+        const location = data.name;
+        const temp = Math.round(data.main.temp);
+        Math.round(data.main.feels_like);
+        const weatherStatus = data.weather[0].main;
+        const weatherIcon = data.weather[0].icon;
+        const template = `\n\t<section class="right-side__module weather-module">\n<div class="weather-module__title _icon-crosshair">${location}</div>\n<div class="weather-module__body body-weather-module">\n\t<div class="body-weather-module__info">\n\t\t<h4 class="body-weather-module__status">${weatherStatus}</h4>\n\t\t<div class="body-weather-module__value">${temp}<sup>o</sup>c</div>\n\t</div>\n\t<div class="body-weather-module__icon weather__icon">\n\t\t<img src="http://openweathermap.org/img/w/${weatherIcon}.png" alt="${weatherStatus}">\n\t</div>\n</div>\n<div class="weather-module__footer">\n\t<button type="button" class="weather-module__type weather-module__type_active">Celsius</button>\n\t<button type="button" class="weather-module__type">Fahrenheit</button>\n</div>\n</section>`;
+        weatherBlock.innerHTML = template;
     }
-    loadWeather();
+    if (weatherBlock) loadWeather();
     window["FLS"] = true;
     isWebp();
     menuInit();
